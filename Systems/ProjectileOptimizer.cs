@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.ModLoader;
 using TerrariaOptimizer.Configs;
+using static TerrariaOptimizer.Systems.BackgroundPlanner;
 
 namespace TerrariaOptimizer.Systems
 {
@@ -13,28 +14,28 @@ namespace TerrariaOptimizer.Systems
         private const int MAX_PROJECTILES_REDUCED = 150;
         private static int updateCounter = 0;
         private static int lastRemovedCount = 0;
-		
-		public override void Load()
-		{
-			DebugUtility.LogAlways("ProjectileOptimizer loaded");
-		}
-		
-		public override void Unload()
-		{
-			// During unload, the mod instance may already be null, so we need to be careful
-			try
-			{
-				if (TerrariaOptimizer.Instance != null)
-				{
-					TerrariaOptimizer.Instance.Logger.Info("[TerrariaOptimizer] ProjectileOptimizer unloaded");
-				}
-			}
-			catch
-			{
-				// Silently ignore logging errors during unload
-			}
-		}
-		
+
+        public override void Load()
+        {
+            DebugUtility.LogAlways("ProjectileOptimizer loaded");
+        }
+
+        public override void Unload()
+        {
+            // During unload, the mod instance may already be null, so we need to be careful
+            try
+            {
+                if (TerrariaOptimizer.Instance != null)
+                {
+                    TerrariaOptimizer.Instance.Logger.Info("[TerrariaOptimizer] ProjectileOptimizer unloaded");
+                }
+            }
+            catch
+            {
+                // Silently ignore logging errors during unload
+            }
+        }
+
         public override void PreUpdateProjectiles()
         {
             updateCounter++;
@@ -81,24 +82,24 @@ namespace TerrariaOptimizer.Systems
                 ReduceProjectileCount(projectileCount);
             }
         }
-		
-		private int GetActiveProjectileCount()
-		{
-			int count = 0;
-			for (int i = 0; i < Main.projectile.Length; i++)
-			{
-				if (Main.projectile[i].active)
-					count++;
-			}
-			return count;
-		}
-		
+
+        private int GetActiveProjectileCount()
+        {
+            int count = 0;
+            for (int i = 0; i < Main.projectile.Length; i++)
+            {
+                if (Main.projectile[i].active)
+                    count++;
+            }
+            return count;
+        }
+
         private void ReduceProjectileCount(int currentCount)
         {
             var config = ModContent.GetInstance<OptimizationConfig>();
             // Use the correct config setting for particle effect reduction
             int maxProjectiles = config.ParticleEffectReduction ? MAX_PROJECTILES_REDUCED : MAX_PROJECTILES_OPTIMAL;
-            
+
             if (currentCount <= maxProjectiles)
             {
                 if (updateCounter % 60 == 0)
@@ -109,49 +110,80 @@ namespace TerrariaOptimizer.Systems
             }
 
             int projectilesToRemove = currentCount - maxProjectiles;
-            
+
             if (updateCounter % 60 == 0)
             {
                 DebugUtility.Log($"ProjectileOptimizer: Need to remove {projectilesToRemove} projectiles");
             }
-            
-            // Create a list of projectiles with their indices and priority
-            List<(int index, int age, bool isImportant)> projectilePriorities = new List<(int, int, bool)>();
-            
+
+            // If a background plan exists and MultiCoreUtilization is enabled, consume it first
+            if (config.MultiCoreUtilization && BackgroundPlanner.TryConsumeProjectileTrimPlan(out var planned))
+            {
+                int removed = 0;
+                for (int i = 0; i < planned.Length && removed < projectilesToRemove; i++)
+                {
+                    int idx = planned[i];
+                    if (idx >= 0 && idx < Main.projectile.Length && Main.projectile[idx].active)
+                    {
+                        // Skip important projectiles just in case
+                        if (IsImportantProjectile(Main.projectile[idx]))
+                            continue;
+                        Main.projectile[idx].active = false;
+                        removed++;
+                    }
+                }
+                lastRemovedCount = removed;
+                if (updateCounter % 60 == 0)
+                {
+                    DebugUtility.Log($"ProjectileOptimizer (BG plan): Removed {removed} projectiles");
+                }
+                return;
+            }
+
+            // Create a list of projectile snapshots for sorting (main-thread)
+            List<ProjectileSnapshot> snapshots = new List<ProjectileSnapshot>();
+
             for (int i = 0; i < Main.projectile.Length; i++)
             {
                 if (Main.projectile[i].active)
                 {
-                    // Determine if projectile is important (player projectiles, boss projectiles, etc.)
                     bool isImportant = IsImportantProjectile(Main.projectile[i]);
-                    projectilePriorities.Add((i, Main.projectile[i].timeLeft, isImportant));
+                    snapshots.Add(new ProjectileSnapshot
+                    {
+                        index = i,
+                        timeLeft = Main.projectile[i].timeLeft,
+                        isImportant = isImportant
+                    });
                 }
             }
-            
-            // Sort by importance first, then by age (oldest first)
-            projectilePriorities.Sort((a, b) => 
+
+            // If MultiCoreUtilization is enabled, schedule a background plan for next tick
+            if (config.MultiCoreUtilization)
             {
-                // Keep important projectiles
+                BackgroundPlanner.ScheduleProjectileTrim(snapshots, projectilesToRemove, Main.GameUpdateCount);
+            }
+
+            // Synchronous fallback: sort and remove now
+            snapshots.Sort((a, b) =>
+            {
                 if (a.isImportant && !b.isImportant) return -1;
                 if (!a.isImportant && b.isImportant) return 1;
-                
-                // For same importance level, sort by age
-                return a.age.CompareTo(b.age);
+                return a.timeLeft.CompareTo(b.timeLeft);
             });
-            
+
             // Remove oldest non-important projectiles
             int removedCount = 0;
-            for (int i = 0; i < projectilePriorities.Count && removedCount < projectilesToRemove; i++)
+            for (int i = 0; i < snapshots.Count && removedCount < projectilesToRemove; i++)
             {
-                var projInfo = projectilePriorities[i];
+                var projInfo = snapshots[i];
                 // Skip important projectiles
                 if (projInfo.isImportant) continue;
-                
+
                 // Remove the projectile
                 Main.projectile[projInfo.index].active = false;
                 removedCount++;
             }
-            
+
             if (updateCounter % 60 == 0)
             {
                 DebugUtility.Log($"ProjectileOptimizer: Removed {removedCount} projectiles");
@@ -160,39 +192,67 @@ namespace TerrariaOptimizer.Systems
             // store last removed for summary
             lastRemovedCount = removedCount;
         }
-		
-		private bool IsImportantProjectile(Projectile projectile)
-		{
-			// Player projectiles are important
-			if (projectile.owner < 255 && projectile.owner >= 0)
-			{
-				// Only log occasionally to avoid spam
-				if (updateCounter % 300 == 0)
-				{
-					DebugUtility.Log($"ProjectileOptimizer: Projectile {projectile.whoAmI} is important (player projectile)");
-				}
-				return true;
-			}
-				
-			// Boss projectiles might be important
-			// This is a simplified check - in reality, you might want to check specific projectile types
-			if (projectile.damage > 50)
-			{
-				// Only log occasionally to avoid spam
-				if (updateCounter % 300 == 0)
-				{
-					DebugUtility.Log($"ProjectileOptimizer: Projectile {projectile.whoAmI} is important (high damage: {projectile.damage})");
-				}
-				return true;
-			}
-				
-			// Only log occasionally to avoid spam
-			if (updateCounter % 300 == 0)
-			{
-				DebugUtility.Log($"ProjectileOptimizer: Projectile {projectile.whoAmI} is not important");
-			}
-			return false;
-		}
+
+        private bool IsImportantProjectile(Projectile projectile)
+        {
+            // Player projectiles are important
+            if (projectile.owner < 255 && projectile.owner >= 0)
+            {
+                // Only log occasionally to avoid spam
+                if (updateCounter % 300 == 0)
+                {
+                    DebugUtility.Log($"ProjectileOptimizer: Projectile {projectile.whoAmI} is important (player projectile)");
+                }
+                return true;
+            }
+
+            // Friendly/minion projectiles are usually gameplay-relevant
+            if (projectile.friendly || projectile.minion)
+            {
+                if (updateCounter % 300 == 0)
+                {
+                    DebugUtility.Log($"ProjectileOptimizer: Projectile {projectile.whoAmI} is important (friendly/minion)");
+                }
+                return true;
+            }
+
+            // Boss projectiles might be important
+            // This is a simplified check - in reality, you might want to check specific projectile types
+            if (projectile.damage > 50)
+            {
+                // Only log occasionally to avoid spam
+                if (updateCounter % 300 == 0)
+                {
+                    DebugUtility.Log($"ProjectileOptimizer: Projectile {projectile.whoAmI} is important (high damage: {projectile.damage})");
+                }
+                return true;
+            }
+
+            // Near any active player: keep
+            float nearSq = 600f * 600f;
+            for (int i = 0; i < Main.maxPlayers; i++)
+            {
+                var pl = Main.player[i];
+                if (pl?.active == true)
+                {
+                    if (Vector2.DistanceSquared(projectile.Center, pl.Center) <= nearSq)
+                    {
+                        if (updateCounter % 300 == 0)
+                        {
+                            DebugUtility.Log($"ProjectileOptimizer: Projectile {projectile.whoAmI} is important (near player)");
+                        }
+                        return true;
+                    }
+                }
+            }
+
+            // Only log occasionally to avoid spam
+            if (updateCounter % 300 == 0)
+            {
+                DebugUtility.Log($"ProjectileOptimizer: Projectile {projectile.whoAmI} is not important");
+            }
+            return false;
+        }
         public override void PostUpdatePlayers()
         {
             if (DebugUtility.IsDebugEnabled() && Main.GameUpdateCount % 300 == 0)

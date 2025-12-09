@@ -180,7 +180,14 @@ namespace TerrariaOptimizer.Systems
                 if (p != null)
                 {
                     float distSq = Vector2.DistanceSquared(position, p.Center);
-                    if (distSq > 1000f * 1000f)
+                    // Prefer more aggressive culling for very far particles when stressed
+                    float farSq = 1000f * 1000f;
+                    float veryFarSq = 1600f * 1600f;
+                    if (distSq > veryFarSq && _stressIndicator >= 5)
+                    {
+                        dropChance = Math.Min(1f, dropChance + 0.35f);
+                    }
+                    else if (distSq > farSq)
                     {
                         dropChance = Math.Min(1f, dropChance + 0.2f);
                     }
@@ -214,6 +221,7 @@ namespace TerrariaOptimizer.Systems
             int removedGore = 0;
 
             int stride = _stressIndicator >= 8 ? 4 : (_stressIndicator >= 5 ? 8 : 16);
+            float offscreenSq = 800f * 800f;
 
             // Dust culling
             for (int i = 0; i < Main.dust.Length; i += stride)
@@ -221,6 +229,19 @@ namespace TerrariaOptimizer.Systems
                 var d = Main.dust[i];
                 if (d == null || !d.active)
                     continue;
+                // Heuristic: aggressively cull tiny, non-light dust far from player when stressed
+                float dsq = Vector2.DistanceSquared(d.position, p.Center);
+                bool veryFar = dsq > (1600f * 1600f);
+                bool far = dsq > offscreenSq;
+                bool tiny = d.scale < 0.6f;
+                bool dim = d.alpha > 100 || d.noLight;
+                bool commonType = d.type == DustID.Smoke || d.type == DustID.Torch || d.type == DustID.Water || d.type == DustID.FireworkFountain_Red || d.type == DustID.FireworkFountain_Blue || d.type == DustID.FireworkFountain_Green || d.type == DustID.FireworkFountain_Yellow;
+                if ((_stressIndicator >= 5 && far && tiny && dim) || (_stressIndicator >= 8 && veryFar && (tiny || dim || commonType)))
+                {
+                    d.active = false;
+                    removedDust++;
+                    continue;
+                }
                 if (ShouldDropParticle(d.position))
                 {
                     d.active = false;
@@ -234,6 +255,16 @@ namespace TerrariaOptimizer.Systems
                 var g = Main.gore[i];
                 if (g == null || !g.active)
                     continue;
+                float gsq = Vector2.DistanceSquared(g.position, p.Center);
+                bool gFar = gsq > offscreenSq;
+                bool gVeryFar = gsq > (1600f * 1600f);
+                bool smallGore = g.scale < 0.75f;
+                if ((_stressIndicator >= 5 && gFar && smallGore) || (_stressIndicator >= 8 && gVeryFar))
+                {
+                    g.active = false;
+                    removedGore++;
+                    continue;
+                }
                 if (ShouldDropParticle(g.position))
                 {
                     g.active = false;
@@ -244,6 +275,42 @@ namespace TerrariaOptimizer.Systems
             if (DebugUtility.IsDebugEnabled() && Main.GameUpdateCount % 300 == 0)
             {
                 DebugUtility.Log($"ParticleReducer Summary: culled dust={removedDust}, gore={removedGore}, stress={_stressIndicator}");
+            }
+
+            // Optional: Rain culling under stress, preserving fidelity near camera
+            if (config.RainOptimization)
+            {
+                bool allowCull = !config.RainCullOnlyWhenStressed || IsPerformanceStressed();
+                if (allowCull && Main.rain != null)
+                {
+                    int culledRain = 0;
+                    int rstride = Math.Max(2, config.RainCullStride);
+                    var zoom = Main.GameViewMatrix.Zoom;
+                    float minZoomX = Math.Max(0.5f, zoom.X);
+                    float minZoomY = Math.Max(0.5f, zoom.Y);
+                    int viewW = (int)(Main.screenWidth / minZoomX);
+                    int viewH = (int)(Main.screenHeight / minZoomY);
+                    int margin = 200; // keep extra buffer to treat edges as near
+                    var nearRect = new Rectangle((int)Main.screenPosition.X - margin, (int)Main.screenPosition.Y - margin, viewW + margin * 2, viewH + margin * 2);
+
+                    for (int i = 0; i < Main.rain.Length; i += rstride)
+                    {
+                        var drop = Main.rain[i];
+                        if (!drop.active)
+                            continue;
+                        var pos = drop.position.ToPoint();
+                        if (!nearRect.Contains(pos))
+                        {
+                            drop.active = false;
+                            culledRain++;
+                        }
+                    }
+
+                    if (DebugUtility.IsDebugEnabled() && Main.GameUpdateCount % 300 == 0)
+                    {
+                        DebugUtility.Log($"ParticleReducer Summary: culled rain={culledRain}, stride={rstride}, stress={_stressIndicator}");
+                    }
+                }
             }
         }
 
@@ -268,11 +335,6 @@ namespace TerrariaOptimizer.Systems
             if (!config.ParticleEffectReduction)
                 return;
 
-            // Potential optimizations:
-            // 1. Reduce particle spawn rate
-            // 2. Limit total particle count
-            // 3. Simplify particle rendering
-            // 4. Remove distant particles
             DebugUtility.Log("ParticleReducer: Optimizing particle effects");
         }
     }

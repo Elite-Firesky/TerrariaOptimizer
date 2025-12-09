@@ -82,6 +82,25 @@ Mods: {
 					Label: Particle Effect Reduction
 				}
 
+				// Rain Optimization settings
+				RainOptimization: {
+					DisplayName: Rain Optimization
+					Tooltip: Conservatively reduce far-away rain droplets under heavy load. Keeps all rain near camera.
+					Label: Rain Optimization
+				}
+
+				RainCullStride: {
+					DisplayName: Rain Cull Stride
+					Tooltip: Stride for rain culling (every Nth droplet). Lower = gentler.
+					Label: Rain Cull Stride
+				}
+
+				RainCullOnlyWhenStressed: {
+					DisplayName: Rain Cull Only When Stressed
+					Tooltip: Only cull rain when performance is stressed. Turn off to always cull during storms.
+					Label: Rain Cull Only When Stressed
+				}
+
 				// Lighting Performance Mode setting
 				LightingPerformanceMode: {
 					DisplayName: Lighting Performance Mode

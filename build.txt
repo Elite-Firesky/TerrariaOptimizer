@@ -1,5 +1,5 @@
 author = Firesky
-version = 2.0
-displayName = TerrariaOptimizer
+version = 3.0
+displayName = [c/66CCFF:TerrariaOptimizer]
 homepage = https://github.com/Elite-Firesky/TerrariaOptimizer
 side = Both

@@ -19,6 +19,9 @@ namespace TerrariaOptimizer.Systems
         private static int _forcedProj = 0;
         private static uint _windowStartTick = 0;
 
+        // Fast path: cache active player centers per server tick for reuse
+        private static volatile Vector2[] _cachedPlayerCenters;
+
         public override void Load()
         {
             DebugUtility.LogAlways("MultiplayerOptimizer loaded");
@@ -56,6 +59,78 @@ namespace TerrariaOptimizer.Systems
                     _throttledProj = 0;
                     _forcedProj = 0;
                     _windowStartTick = Main.GameUpdateCount;
+                }
+
+                // Fast path: cache active player centers for this tick
+                try
+                {
+                    var vecs = ObjectPoolManager.GetVector2List();
+                    for (int i = 0; i < Main.maxPlayers; i++)
+                    {
+                        Player pl = Main.player[i];
+                        if (pl != null && pl.active)
+                        {
+                            vecs.Add(pl.Center);
+                        }
+                    }
+                    _cachedPlayerCenters = vecs.ToArray();
+                    ObjectPoolManager.ReturnVector2List(vecs);
+                }
+                catch { }
+
+                // Server-side: periodically precompute offscreen flags for NPCs and Projectiles
+                if ((Main.GameUpdateCount % 30u) == 0u)
+                {
+                    float threshold = Math.Max(800, serverConfig.NetworkOffscreenDistancePx);
+
+                    var players = ObjectPoolManager.GetPlayerSnapshotList();
+                    var centers = _cachedPlayerCenters;
+                    if (centers != null && centers.Length > 0)
+                    {
+                        for (int i = 0; i < centers.Length; i++)
+                        {
+                            players.Add(new BackgroundPlanner.PlayerSnapshot { center = centers[i] });
+                        }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < Main.maxPlayers; i++)
+                        {
+                            Player pl = Main.player[i];
+                            if (pl != null && pl.active)
+                            {
+                                players.Add(new BackgroundPlanner.PlayerSnapshot { center = pl.Center });
+                            }
+                        }
+                    }
+
+                    var npcs = ObjectPoolManager.GetEntitySnapshotList();
+                    for (int i = 0; i < Main.maxNPCs; i++)
+                    {
+                        NPC n = Main.npc[i];
+                        if (n != null && n.active)
+                        {
+                            npcs.Add(new BackgroundPlanner.EntitySnapshot { index = n.whoAmI, center = n.Center });
+                        }
+                    }
+
+                    var projs = ObjectPoolManager.GetEntitySnapshotList();
+                    for (int i = 0; i < Main.projectile.Length; i++)
+                    {
+                        Projectile p = Main.projectile[i];
+                        if (p != null && p.active)
+                        {
+                            projs.Add(new BackgroundPlanner.EntitySnapshot { index = p.whoAmI, center = p.Center });
+                        }
+                    }
+
+                    BackgroundPlanner.ScheduleOffscreenFlagsForNPCs(players, npcs, threshold);
+                    BackgroundPlanner.ScheduleOffscreenFlagsForProjectiles(players, projs, threshold);
+
+                    // Return pooled lists after scheduling (planner copies to arrays synchronously)
+                    ObjectPoolManager.ReturnPlayerSnapshotList(players);
+                    ObjectPoolManager.ReturnEntitySnapshotList(npcs);
+                    ObjectPoolManager.ReturnEntitySnapshotList(projs);
                 }
             }
         }
@@ -148,23 +223,20 @@ namespace TerrariaOptimizer.Systems
             if (!serverConfig.NetworkTrafficReduction)
                 return false;
 
-            // Critical conditions: near any player or targeted player in close range
-            float threshold = Math.Max(800, serverConfig.NetworkOffscreenDistancePx);
-            float thresholdSq = threshold * threshold;
-            float minDistSq = float.MaxValue;
-            for (int i = 0; i < Main.maxPlayers; i++)
+            bool far = BackgroundPlanner.IsNpcFar(npc.whoAmI);
+            // Consider critical only when near the targeted player; far-away targeting is common and safe to throttle
+            bool nearTarget = false;
+            if (npc.target >= 0 && npc.target < Main.maxPlayers)
             {
-                Player pl = Main.player[i];
-                if (pl != null && pl.active)
+                var pl = Main.player[npc.target];
+                if (pl?.active == true)
                 {
-                    float dsq = Vector2.DistanceSquared(npc.Center, pl.Center);
-                    if (dsq < minDistSq)
-                        minDistSq = dsq;
+                    float threshold = Math.Max(800, serverConfig.NetworkOffscreenDistancePx);
+                    float thresholdSq = threshold * threshold;
+                    nearTarget = Vector2.DistanceSquared(npc.Center, pl.Center) <= thresholdSq;
                 }
             }
-
-            bool far = minDistSq > thresholdSq;
-            bool critical = npc.justHit || npc.lifeRegen < 0 || npc.target >= 0;
+            bool critical = npc.justHit || npc.lifeRegen < 0 || nearTarget;
             return far && !critical;
         }
 
@@ -178,22 +250,39 @@ namespace TerrariaOptimizer.Systems
             if (!serverConfig.NetworkTrafficReduction)
                 return false;
 
+            bool far = BackgroundPlanner.IsProjectileFar(proj.whoAmI);
+            // Treat as critical when near any player, or marked important
+            bool nearPlayer = false;
             float threshold = Math.Max(800, serverConfig.NetworkOffscreenDistancePx);
             float thresholdSq = threshold * threshold;
-            float minDistSq = float.MaxValue;
-            for (int i = 0; i < Main.maxPlayers; i++)
+            var centers = _cachedPlayerCenters;
+            if (centers != null)
             {
-                Player pl = Main.player[i];
-                if (pl != null && pl.active)
+                for (int i = 0; i < centers.Length; i++)
                 {
-                    float dsq = Vector2.DistanceSquared(proj.Center, pl.Center);
-                    if (dsq < minDistSq)
-                        minDistSq = dsq;
+                    if (Vector2.DistanceSquared(proj.Center, centers[i]) <= thresholdSq)
+                    {
+                        nearPlayer = true;
+                        break;
+                    }
                 }
             }
-
-            bool far = minDistSq > thresholdSq;
-            bool critical = proj.owner >= 0 || proj.friendly || proj.hostile;
+            else
+            {
+                for (int i = 0; i < Main.maxPlayers; i++)
+                {
+                    var pl = Main.player[i];
+                    if (pl?.active == true)
+                    {
+                        if (Vector2.DistanceSquared(proj.Center, pl.Center) <= thresholdSq)
+                        {
+                            nearPlayer = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            bool critical = proj.netImportant || nearPlayer || proj.hostile;
             return far && !critical;
         }
 
@@ -242,7 +331,8 @@ namespace TerrariaOptimizer.Systems
                     {
                         var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                         float threshold = Math.Max(800, serverConfig?.NetworkOffscreenDistancePx ?? 1600);
-                        if (Vector2.Distance(npc.Center, pl.Center) <= threshold)
+                        float thresholdSq = threshold * threshold;
+                        if (Vector2.DistanceSquared(npc.Center, pl.Center) <= thresholdSq)
                             return true;
                     }
                 }
@@ -270,7 +360,8 @@ namespace TerrariaOptimizer.Systems
                     {
                         var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                         float threshold = Math.Max(800, serverConfig?.NetworkOffscreenDistancePx ?? 1600);
-                        if (Vector2.Distance(projectile.Center, owner.Center) <= threshold)
+                        float thresholdSq = threshold * threshold;
+                        if (Vector2.DistanceSquared(projectile.Center, owner.Center) <= thresholdSq)
                             return true;
                     }
                 }
@@ -280,11 +371,24 @@ namespace TerrariaOptimizer.Systems
                 {
                     var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                     float threshold = Math.Max(800, serverConfig?.NetworkOffscreenDistancePx ?? 1600);
-                    for (int i = 0; i < Main.maxPlayers; i++)
+                    float thresholdSq = threshold * threshold;
+                    var centers = _cachedPlayerCenters;
+                    if (centers != null)
                     {
-                        var pl = Main.player[i];
-                        if (pl?.active == true && Vector2.Distance(projectile.Center, pl.Center) <= threshold)
-                            return true;
+                        for (int i = 0; i < centers.Length; i++)
+                        {
+                            if (Vector2.DistanceSquared(projectile.Center, centers[i]) <= thresholdSq)
+                                return true;
+                        }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < Main.maxPlayers; i++)
+                        {
+                            var pl = Main.player[i];
+                            if (pl?.active == true && Vector2.DistanceSquared(projectile.Center, pl.Center) <= thresholdSq)
+                                return true;
+                        }
                     }
                 }
             }

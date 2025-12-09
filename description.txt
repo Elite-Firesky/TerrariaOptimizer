@@ -2,8 +2,9 @@ TerrariaOptimizer — honest performance helper for modded Terraria.
 
 What it actually does:
 - NPC AI throttling: when active NPCs exceed a threshold, non‑town NPCs update every 5 frames.
-- Projectile capping: trims oldest, low‑priority projectiles; preserves player/high‑damage ones.
+- Projectile capping: trims oldest, low‑priority projectiles; preserves player, friendly/minion, high‑damage, and near‑player ones.
 - Particle reduction: culls dust and gore under stress based on simple indicators.
+- Optional rain optimization: conservatively deactivates far‑away rain droplets under stress while keeping all rain within the camera view (zoom‑aware, buffered).
 - Lighting culling: skips far‑offscreen light from projectiles and dust.
 - Decorative tiles: freezes some tile animations on skip frames during fast movement.
 - Texture tracking: lightweight LRU markers; does not block texture loads.
@@ -11,6 +12,8 @@ What it actually does:
 - Memory monitor: forces GC only past a hard threshold; can clear pools.
 - Object pools: common collections to reduce temporary allocations.
 - Multiplayer: server‑side throttling by interval/distance; client always allowed to send.
+- Networking fast path: caches player centers per tick and uses squared distance checks; offscreen flags use compact arrays for faster decisions.
+- Multi‑core (optional): when enabled, precomputes projectile trim candidates and server offscreen flags off‑thread, applying results on the main thread.
 
 Configuration:
 - Each system is togglable with thresholds. Safe defaults, minimal risk.
