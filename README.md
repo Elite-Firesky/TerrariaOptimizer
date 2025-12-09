@@ -1,69 +1,79 @@
 # TerrariaOptimizer
 
-A sophisticated performance optimization mod for tModLoader designed to dramatically improve frame rates and reduce lag in heavily modded Terraria games.
+Straightforward performance helpers for tModLoader. This mod focuses on safe, conservative changes that reduce CPU/visual pressure without risky engine hooks. Below is exactly what it does today.
 
-## Features
+## What It Actually Does
 
-### Core Optimizations
-- **NPC AI Throttling**: Reduces NPC AI updates when many NPCs are present to prevent performance drops during boss fights
-- **Projectile Management**: Intelligently manages projectile count to prevent thousands of projectiles from slowing down the game
-- **Tile Update Reduction**: Minimizes unnecessary tile updates while preserving important gameplay elements
-- **Garbage Collection Optimization**: Uses object pooling to reduce memory allocations and garbage collection pauses
-- **Multi-Core Utilization**: Distributes workload across multiple CPU cores when possible
+- Lowers background load when scenes get heavy.
+- Reduces extreme projectile/dust/gore counts with simple, predictable rules.
+- Avoids invasive reflection or deep engine rewrites.
+- Keeps server throttling explicit and controlled via server config.
 
-### Visual Optimizations
-- **Particle Effect Reduction**: Automatically reduces particle effects when performance drops below optimal levels
-- **Lighting Engine Optimization**: Adjusts lighting calculations for better performance without sacrificing visual quality
+## Systems Overview
 
-### Multiplayer Enhancements
-- **Network Traffic Reduction**: Batches network updates to reduce bandwidth usage and server load
-- **Client-Side Prediction**: Improves responsiveness in multiplayer games
+- NPC AI Throttling (`NPCAIManager`)
+  - When active NPCs exceed `MaxActiveNPCs`, non-town NPC AI updates are throttled to every 5 frames.
+  - There is no special exemption for bosses in code; set `MaxActiveNPCs` high if you want to avoid boss throttling.
+
+- Projectile Optimizer (`ProjectileOptimizer`)
+  - Caps total active projectiles; removes older, low-priority ones first.
+  - Priority keeps player-owned and high-damage projectiles.
+  - Limits: `MAX_PROJECTILES_OPTIMAL=300`, reduced to `150` if `ParticleEffectReduction` is enabled.
+
+- Particle Reducer (`ParticleReducer`)
+  - Tracks a simple “stress” score based on entities, dust/gore volume, and underwater state.
+  - When stressed, culls dust and gore (client-side) to reduce clutter and CPU cost.
+
+- Lighting Optimizer (`LightingOptimizer`)
+  - Culls lighting contributions from far offscreen projectiles and dust to reduce lighting work.
+  - Logs a “resolution adjust” intent; it does not actually change internal lighting resolution.
+
+- Tile Update Optimizer (`TileUpdateOptimizer`)
+  - Does not hook the core tile update loop.
+  - Freezes decorative tile animation on skip frames when the local player moves fast.
+  - Samples visible tiles (stride) to inform texture usage tracking.
+
+- Texture Optimizer (`TextureOptimizer`)
+  - Maintains a lightweight LRU of texture IDs touched by tiles/dust/gore/NPC/projectiles.
+  - Does not block texture loads; `ShouldLoadTexture(...)` currently returns `true` conservatively.
+
+- Offscreen Entity Helper (`OffscreenEntityOptimizer`)
+  - Provides `ShouldEntityUpdate(Vector2)` for client-side offscreen gating (interval-based updates when far from the player).
+  - Used by other systems to de-prioritize far entities; does not force server behavior.
+
+- Multiplayer Optimizer (`MultiplayerOptimizer`)
+  - Server: optionally throttles NPC/Projectile net updates based on interval/distance when `NetworkTrafficReduction` is enabled.
+  - Client: always ok to send updates; throttling is controlled server-side.
+  - Emits periodic server-side metrics (throttled/forced counts).
+
+- Memory Monitor & Pools (`MemoryMonitor`, `ObjectPoolManager`)
+  - Monitors managed memory; triggers GC only when above a configured hard threshold.
+  - Can clear object pools during aggressive cleanup.
+  - Object pools for common lists/dictionaries reduce temporary allocations when enabled.
+
+## Configuration (in-game Mod Config)
+
+- Client (`OptimizationConfig`)
+  - `DebugMode`, `NPCAIThrottling`, `MaxActiveNPCs`, `ProjectileOptimization`, `OffscreenOptimization`, `TileUpdateReduction`, `GarbageCollectionOptimization`, `MemoryMonitoring`, `ClientMemoryCleanupIntervalSeconds`, `ClientMemoryHardThresholdMB`, `ClientAllowForcedGC`, `MultiCoreUtilization` (currently not used), `ParticleEffectReduction`, `LightingPerformanceMode`, `TextureOptimization`.
+
+- Server (`OptimizationServerConfig`)
+  - `ServerDebugMode`, `MemoryCleanupIntervalSeconds`, `MemoryHardThresholdMB`, `AllowForcedGC`, `NetworkTrafficReduction`, `NetworkUpdateInterval`, `NetworkOffscreenDistancePx`.
+
+## Limitations & Non‑Goals
+
+- No deep engine rewrites or reflection hacks.
+- No client-side prediction or packet batching beyond simple intervals.
+- Lighting “resolution adjust” is a log hint only; actual resolution is unchanged.
+- Texture optimization tracks usage but does not suppress loads.
 
 ## Installation
 
-1. Build the mod using tModLoader's build tools
-2. Enable the mod in tModLoader's mod browser
-3. Configure optimization settings through the in-game mod configuration menu
-
-## Configuration
-
-All optimization features can be customized through the mod configuration menu:
-
-- Toggle individual optimization systems on/off
-- Adjust sensitivity thresholds for automatic optimizations
-- Fine-tune performance vs. visual quality balance
-
-## Compatibility
-
-TerrariaOptimizer is designed to be fully compatible with other mods while providing significant performance improvements. It works in both single-player and multiplayer environments.
-
-## Technical Approach
-
-This mod uses several advanced techniques to optimize performance:
-
-1. **Selective Update Throttling**: Non-critical systems are updated less frequently during performance stress
-2. **Object Pooling**: Reuses objects instead of constantly creating and destroying them
-3. **Smart Resource Management**: Dynamically adjusts resource usage based on current performance metrics
-4. **Multi-threading**: Distributes computational load across multiple CPU cores where possible
-
-## System Requirements
-
-- tModLoader v0.11.8.9 or newer
-- Terraria v1.4.4 or newer
-- At least 2GB RAM recommended
-
-## Performance Benefits
-
-Players with systems similar to Intel i7-4770K have reported:
-- 30-60% improvement in frame rates during boss fights
-- 20-40% reduction in stuttering and micro-stutter
-- Significantly smoother gameplay with 50+ mods installed
-- Improved multiplayer performance with reduced latency
+1. Build the mod using tModLoader’s build tools.
+2. Enable the mod in the Mod Browser.
+3. Configure options in the in-game config menus (client/server).
 
 ## Troubleshooting
 
-If you experience any issues:
-1. Try disabling individual optimization features in the config
-2. Ensure you're using the latest version of tModLoader
-3. Check for mod conflicts in the log files
-4. Report issues on the mod's homepage with detailed system specs
+- If visuals or behavior feel off, disable individual systems and re-test.
+- For servers, keep throttling conservative; increase `NetworkUpdateInterval` carefully.
+- Use `DebugMode` to see periodic summaries in the log.

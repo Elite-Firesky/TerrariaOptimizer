@@ -1,15 +1,16 @@
-A sophisticated performance optimization mod designed to reduce frame rate drops and improve overall game responsiveness in heavily modded Terraria games. Implements various optimization techniques to maximize performance on older hardware while maintaining full compatibility with other mods and preserving visual quality.
+TerrariaOptimizer — honest performance helper for modded Terraria.
 
-Features:
-- Smart NPC AI throttling during high mob counts
-- Optimized projectile handling and rendering
-- Efficient tile update management
-- Reduced garbage collection overhead
-- Multi-core utilization improvements
-- Memory allocation optimizations
-- Network traffic reduction for multiplayer
-- Off-screen entity optimization
-- Advanced memory monitoring and cleanup
-- Texture caching and optimization
+What it actually does:
+- NPC AI throttling: when active NPCs exceed a threshold, non‑town NPCs update every 5 frames.
+- Projectile capping: trims oldest, low‑priority projectiles; preserves player/high‑damage ones.
+- Particle reduction: culls dust and gore under stress based on simple indicators.
+- Lighting culling: skips far‑offscreen light from projectiles and dust.
+- Decorative tiles: freezes some tile animations on skip frames during fast movement.
+- Texture tracking: lightweight LRU markers; does not block texture loads.
+- Offscreen helper: interval updates for far entities used by other systems.
+- Memory monitor: forces GC only past a hard threshold; can clear pools.
+- Object pools: common collections to reduce temporary allocations.
+- Multiplayer: server‑side throttling by interval/distance; client always allowed to send.
 
-Perfect for players experiencing lag with boss fights or large mob spawns on systems with limited CPU cores.
+Configuration:
+- Each system is togglable with thresholds. Safe defaults, minimal risk.

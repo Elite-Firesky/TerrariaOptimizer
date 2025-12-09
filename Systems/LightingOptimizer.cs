@@ -76,11 +76,6 @@ namespace TerrariaOptimizer.Systems
 
         private void AdjustLightingResolution(float scale)
         {
-            // This is where we would modify the lighting engine settings
-            // In practice, we might need to use reflection or hooks to modify
-            // internal lighting engine parameters
-
-            // For now, we'll just document the intended approach
             DebugUtility.Log($"LightingOptimizer: Adjusting lighting resolution to scale {scale}");
             adjustmentsCount++;
         }
@@ -103,40 +98,7 @@ namespace TerrariaOptimizer.Systems
             return shouldUpdate;
         }
 
-        // Optimize light rendering for distant lights
-        public void OptimizeLightRendering()
-        {
-            var config = ModContent.GetInstance<OptimizationConfig>();
 
-            if (!config.LightingPerformanceMode)
-            {
-                DebugUtility.Log("LightingOptimizer: Lighting performance mode is disabled, skipping light rendering optimization");
-                return;
-            }
-
-            // This would involve modifying how lights are rendered
-            // by reducing the render distance of non-critical lights
-            DebugUtility.Log("LightingOptimizer: Optimizing light rendering");
-        }
-
-        // Additional lighting optimization methods
-        public void OptimizeLightingForPerformance()
-        {
-            var config = ModContent.GetInstance<OptimizationConfig>();
-
-            if (!config.LightingPerformanceMode)
-            {
-                DebugUtility.Log("LightingOptimizer: Lighting performance mode is disabled, skipping lighting performance optimization");
-                return;
-            }
-
-            // Potential optimizations:
-            // 1. Reduce the number of light sources updated per frame
-            // 2. Lower the quality of distant lights
-            // 3. Cache static light values
-            // 4. Use simplified lighting algorithms during performance stress
-            DebugUtility.Log("LightingOptimizer: Optimizing lighting for performance");
-        }
 
         // Cull light contributions from far-offscreen projectiles and dust to reduce lighting work
         private void CullOffscreenLightContributors()

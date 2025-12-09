@@ -23,7 +23,7 @@ namespace TerrariaOptimizer.Systems
         // Lightweight LRU for tracking texture usage without touching actual Texture2D
         private readonly Dictionary<int, LinkedListNode<int>> _lruIndex = new Dictionary<int, LinkedListNode<int>>();
         private readonly LinkedList<int> _lruOrder = new LinkedList<int>();
-        private readonly Dictionary<int, object> _cacheMarker = new Dictionary<int, object>(); // placeholder markers
+        private readonly Dictionary<int, object> _cacheMarker = new Dictionary<int, object>();
         private int cleanupCounter = 0;
 
         public override void PreUpdateNPCs()
@@ -75,13 +75,10 @@ namespace TerrariaOptimizer.Systems
         // Method to determine if a texture should be loaded/rendered
         public static bool ShouldLoadTexture(Vector2 worldPosition)
         {
-            // Temporarily always return true to diagnose freezing issue
-            //var config = ModContent.GetInstance<OptimizationConfig>();
-            //
-            //if (!config.TextureOptimization)
-            //	return true;
-            //	
-            // For now, always return true to avoid issues
+            var config = ModContent.GetInstance<OptimizationConfig>();
+            if (!config.TextureOptimization)
+                return true;
+            // Conservative default: allow loading
             return true;
         }
 
@@ -122,7 +119,6 @@ namespace TerrariaOptimizer.Systems
 
         public override void ClearWorld()
         {
-            // Temporarily disable texture optimization to diagnose freezing issue
             // Clear texture cache when world is unloaded
             _lruOrder.Clear();
             _lruIndex.Clear();

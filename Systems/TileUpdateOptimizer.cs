@@ -56,18 +56,6 @@ namespace TerrariaOptimizer.Systems
                 DebugUtility.Log($"TileUpdateOptimizer: Tile update counter: {tileUpdateCounter}");
             }
 
-            // Skip tile updates on certain frames
-            if (tileUpdateCounter % TILE_UPDATE_INTERVAL != 0)
-            {
-                // This is a simplified approach - in reality, we'd need to hook into the tile update system
-                // to selectively skip updates. For now, we'll just document the intended approach.
-                if (DebugUtility.IsDebugEnabled() && tileUpdateCounter % 60 == 0)
-                {
-                    DebugUtility.Log("TileUpdateOptimizer: Would skip tile updates this frame (placeholder)");
-                }
-                skippedFramesCounter++;
-            }
-
             // Periodically sample visible tiles to feed TextureOptimizer LRU
             if (config.TextureOptimization && Main.netMode != Terraria.ID.NetmodeID.Server && Main.GameUpdateCount % 300 == 0)
             {
@@ -75,42 +63,6 @@ namespace TerrariaOptimizer.Systems
             }
         }
 
-        // Method to determine if a tile update is necessary
-        public bool ShouldUpdateTile(int x, int y)
-        {
-            var config = ModContent.GetInstance<OptimizationConfig>();
-            if (!config.TileUpdateReduction)
-                return true;
-
-            // Bounds check to avoid IndexOutOfRange
-            if (x < 0 || y < 0 || x >= Main.maxTilesX || y >= Main.maxTilesY)
-            {
-                if (DebugUtility.IsDebugEnabled() && tileUpdateCounter % 60 == 0)
-                {
-                    DebugUtility.Log($"TileUpdateOptimizer: Tile coords out of bounds ({x},{y})");
-                }
-                return true; // don't throttle unknown tiles
-            }
-
-            // Always update important tiles (e.g., chests, doors) or tiles that actually exist
-            Tile tile = Main.tile[x, y];
-            if (!tile.HasTile || IsImportantTile(tile))
-            {
-                if (DebugUtility.IsDebugEnabled() && tileUpdateCounter % 60 == 0)
-                {
-                    DebugUtility.Log($"TileUpdateOptimizer: Tile at ({x},{y}) considered important (hasTile={tile.HasTile}), updating");
-                }
-                return true;
-            }
-
-            // Otherwise, use our reduced update schedule
-            bool shouldUpdate = tileUpdateCounter % TILE_UPDATE_INTERVAL == 0;
-            if (DebugUtility.IsDebugEnabled() && tileUpdateCounter % 60 == 0)
-            {
-                DebugUtility.Log($"TileUpdateOptimizer: Tile at ({x},{y}) shouldUpdate={shouldUpdate}");
-            }
-            return shouldUpdate;
-        }
 
         public override void PostUpdatePlayers()
         {
@@ -155,26 +107,6 @@ namespace TerrariaOptimizer.Systems
             }
         }
 
-        private bool IsImportantTile(Tile tile)
-        {
-            // Minimal safeguard set of tile types that should never be throttled
-            // Use TileID constants for common interactive tiles
-            // If tile.TileType is unavailable, default to treat as important
-            try
-            {
-                int type = tile.TileType;
-                return type == TileID.Containers
-                    || type == TileID.OpenDoor
-                || type == TileID.ClosedDoor
-                || type == TileID.Switches
-                || type == TileID.WorkBenches
-                || type == TileID.Furnaces;
-            }
-            catch
-            {
-                return true; // be conservative if types are inaccessible
-            }
-        }
 
         private void SampleVisibleTilesForTextures()
         {

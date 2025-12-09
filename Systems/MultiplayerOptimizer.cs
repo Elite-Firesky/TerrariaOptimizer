@@ -17,7 +17,7 @@ namespace TerrariaOptimizer.Systems
         private static int _forcedNpc = 0;
         private static int _throttledProj = 0;
         private static int _forcedProj = 0;
-        private static int _windowStartTick = 0;
+        private static uint _windowStartTick = 0;
 
         public override void Load()
         {
@@ -37,7 +37,7 @@ namespace TerrariaOptimizer.Systems
                 int interval = 3;
                 if (Main.netMode == NetmodeID.Server)
                 {
-                    var serverConfig = ModContent.GetInstance<TerrariaOptimizer.Configs.OptimizationServerConfig>();
+                    var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                     interval = Math.Max(1, serverConfig?.NetworkUpdateInterval ?? 3);
                 }
                 DebugUtility.Log($"MultiplayerOptimizer Summary: interval={interval}, netUpdateCounter={networkUpdateCounter}");
@@ -46,9 +46,9 @@ namespace TerrariaOptimizer.Systems
             // Server-side: every 5s emit a throttling summary when debug enabled
             if (Main.netMode == NetmodeID.Server)
             {
-                var serverConfig = ModContent.GetInstance<TerrariaOptimizer.Configs.OptimizationServerConfig>();
+                var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                 bool shouldLog = (serverConfig?.ServerDebugMode ?? false) || DebugUtility.IsDebugEnabled();
-                if (shouldLog && Main.GameUpdateCount - _windowStartTick >= 300)
+                if (shouldLog && (Main.GameUpdateCount - _windowStartTick) >= 300u)
                 {
                     DebugUtility.Log($"[Server] Net throttling: npc_throttled={_throttledNpc}, npc_forced={_forcedNpc}, proj_throttled={_throttledProj}, proj_forced={_forcedProj}");
                     _throttledNpc = 0;
@@ -62,8 +62,6 @@ namespace TerrariaOptimizer.Systems
 
         public override void PreUpdateNPCs()
         {
-            var config = ModContent.GetInstance<OptimizationConfig>();
-
             // Check if we're in multiplayer mode (either client or server)
             bool isMultiplayer = Main.netMode == NetmodeID.MultiplayerClient || Main.netMode == NetmodeID.Server;
 
@@ -75,37 +73,11 @@ namespace TerrariaOptimizer.Systems
                 }
                 return; // Not in multiplayer
             }
-
-            if (!config.MultiCoreUtilization)
-            {
-                if (DebugUtility.IsDebugEnabled() && networkUpdateCounter % 60 == 0)
-                {
-                    DebugUtility.Log("MultiplayerOptimizer: Multi-core utilization is disabled");
-                }
-                return;
-            }
-
             networkUpdateCounter++;
             if (DebugUtility.IsDebugEnabled() && networkUpdateCounter % 60 == 0)
             {
                 DebugUtility.Log($"MultiplayerOptimizer: Network update counter: {networkUpdateCounter}");
             }
-        }
-
-        // Optimize network traffic by batching updates
-        public void OptimizeNetworkTraffic()
-        {
-            var config = ModContent.GetInstance<OptimizationConfig>();
-
-            if (!config.MultiCoreUtilization)
-            {
-                DebugUtility.Log("MultiplayerOptimizer: Multi-core utilization is disabled, skipping network traffic optimization");
-                return;
-            }
-
-            // This would involve modifying how network packets are sent
-            // by batching similar updates together
-            DebugUtility.Log("MultiplayerOptimizer: Optimizing network traffic");
         }
 
         // Method to determine if network updates should be sent
@@ -116,13 +88,12 @@ namespace TerrariaOptimizer.Systems
 
             if (!isMultiplayer)
             {
-                DebugUtility.Log("MultiplayerOptimizer: Not in multiplayer mode, no network updates needed");
                 return false;
             }
 
             if (Main.netMode == NetmodeID.Server)
             {
-                var serverConfig = ModContent.GetInstance<TerrariaOptimizer.Configs.OptimizationServerConfig>();
+                var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                 if (!serverConfig.NetworkTrafficReduction)
                 {
                     return true;
@@ -132,19 +103,8 @@ namespace TerrariaOptimizer.Systems
                 bool shouldSendServer = networkUpdateCounter % interval == 0;
                 return shouldSendServer;
             }
-
-            var config = ModContent.GetInstance<OptimizationConfig>();
-            if (!config.MultiCoreUtilization)
-            {
-                DebugUtility.Log("MultiplayerOptimizer: Multi-core utilization is disabled, sending updates normally");
-                return true;
-            }
-
-            // Client-side: rely on multi-core toggle path for diagnostics only
-            int clientInterval = 3;
-            bool shouldSend = networkUpdateCounter % clientInterval == 0;
-            DebugUtility.Log($"MultiplayerOptimizer: Should send network update: {shouldSend}");
-            return shouldSend;
+            // Client: always allow updates; throttling is server-controlled
+            return true;
         }
 
         // Consider offscreen entities low priority for networking when allowed
@@ -157,7 +117,7 @@ namespace TerrariaOptimizer.Systems
             // On server, determine offscreen status by distance to any active player
             if (Main.netMode == NetmodeID.Server)
             {
-                var serverConfig = ModContent.GetInstance<TerrariaOptimizer.Configs.OptimizationServerConfig>();
+                var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                 float threshold = Math.Max(800, serverConfig.NetworkOffscreenDistancePx);
                 float thresholdSq = threshold * threshold;
                 float minDistSq = float.MaxValue;
@@ -184,7 +144,7 @@ namespace TerrariaOptimizer.Systems
             if (Main.netMode != NetmodeID.Server)
                 return false;
 
-            var serverConfig = ModContent.GetInstance<TerrariaOptimizer.Configs.OptimizationServerConfig>();
+            var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
             if (!serverConfig.NetworkTrafficReduction)
                 return false;
 
@@ -214,7 +174,7 @@ namespace TerrariaOptimizer.Systems
             if (Main.netMode != NetmodeID.Server)
                 return false;
 
-            var serverConfig = ModContent.GetInstance<TerrariaOptimizer.Configs.OptimizationServerConfig>();
+            var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
             if (!serverConfig.NetworkTrafficReduction)
                 return false;
 
@@ -267,7 +227,7 @@ namespace TerrariaOptimizer.Systems
                     return false;
 
                 // Bosses or marked as important should always sync immediately
-                if (npc.boss || npc.netAlways || npc.netImportant)
+                if (npc.boss || npc.netAlways)
                     return true;
 
                 // Damage or regen loss events warrant immediate sync
@@ -280,7 +240,7 @@ namespace TerrariaOptimizer.Systems
                     var pl = Main.player[npc.target];
                     if (pl?.active == true)
                     {
-                        var serverConfig = ModContent.GetInstance<TerrariaOptimizer.Configs.OptimizationServerConfig>();
+                        var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                         float threshold = Math.Max(800, serverConfig?.NetworkOffscreenDistancePx ?? 1600);
                         if (Vector2.Distance(npc.Center, pl.Center) <= threshold)
                             return true;
@@ -308,7 +268,7 @@ namespace TerrariaOptimizer.Systems
                     var owner = Main.player[projectile.owner];
                     if (owner?.active == true)
                     {
-                        var serverConfig = ModContent.GetInstance<TerrariaOptimizer.Configs.OptimizationServerConfig>();
+                        var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                         float threshold = Math.Max(800, serverConfig?.NetworkOffscreenDistancePx ?? 1600);
                         if (Vector2.Distance(projectile.Center, owner.Center) <= threshold)
                             return true;
@@ -318,7 +278,7 @@ namespace TerrariaOptimizer.Systems
                 // Hostile projectile approaching any player
                 if (projectile.hostile)
                 {
-                    var serverConfig = ModContent.GetInstance<TerrariaOptimizer.Configs.OptimizationServerConfig>();
+                    var serverConfig = ModContent.GetInstance<OptimizationServerConfig>();
                     float threshold = Math.Max(800, serverConfig?.NetworkOffscreenDistancePx ?? 1600);
                     for (int i = 0; i < Main.maxPlayers; i++)
                     {
@@ -332,35 +292,5 @@ namespace TerrariaOptimizer.Systems
             return false;
         }
 
-
-        // Distribute workload across multiple threads when possible
-        public void DistributeWorkload()
-        {
-            var config = ModContent.GetInstance<OptimizationConfig>();
-
-            if (!config.MultiCoreUtilization)
-            {
-                DebugUtility.Log("MultiplayerOptimizer: Multi-core utilization is disabled, skipping workload distribution");
-                return;
-            }
-
-            // This would involve using threading for non-game-state calculations
-            // such as physics simulations, pathfinding, etc.
-            DebugUtility.Log("MultiplayerOptimizer: Distributing workload");
-        }
-
-        // Additional multiplayer optimization methods
-        public void OptimizeMultiplayerPerformance()
-        {
-            var config = ModContent.GetInstance<OptimizationConfig>();
-
-            if (!config.MultiCoreUtilization)
-            {
-                DebugUtility.Log("MultiplayerOptimizer: Multi-core utilization is disabled, skipping multiplayer performance optimization");
-                return;
-            }
-
-            DebugUtility.Log("MultiplayerOptimizer: Optimizing multiplayer performance");
-        }
     }
 }

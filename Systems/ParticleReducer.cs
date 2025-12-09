@@ -154,12 +154,6 @@ namespace TerrariaOptimizer.Systems
 
         private void ReduceParticleEffects()
         {
-            var config = ModContent.GetInstance<OptimizationConfig>();
-
-            // This is where we would modify particle systems to reduce effects
-            // In practice, we might need to use reflection or hooks to modify
-            // internal particle engine parameters
-
             // Cull existing dust/gore to lower visual/CPU load when stressed
             TrimParticles();
         }
