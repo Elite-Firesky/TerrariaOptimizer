@@ -1,0 +1,15 @@
+A sophisticated performance optimization mod designed to reduce frame rate drops and improve overall game responsiveness in heavily modded Terraria games. Implements various optimization techniques to maximize performance on older hardware while maintaining full compatibility with other mods and preserving visual quality.
+
+Features:
+- Smart NPC AI throttling during high mob counts
+- Optimized projectile handling and rendering
+- Efficient tile update management
+- Reduced garbage collection overhead
+- Multi-core utilization improvements
+- Memory allocation optimizations
+- Network traffic reduction for multiplayer
+- Off-screen entity optimization
+- Advanced memory monitoring and cleanup
+- Texture caching and optimization
+
+Perfect for players experiencing lag with boss fights or large mob spawns on systems with limited CPU cores.

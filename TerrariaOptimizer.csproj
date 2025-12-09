@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\tModLoader.targets" />
+
+  <PropertyGroup>
+    <AssemblyName>TerrariaOptimizer</AssemblyName>
+    <TargetFramework>net6.0</TargetFramework>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <!-- Provide a default tModLoader install directory; allow override via TML_DIR env var -->
+  <PropertyGroup>
+    <TMLDir Condition="'$(TML_DIR)' != ''">$(TML_DIR)</TMLDir>
+    <TMLDir Condition="'$(TML_DIR)' == ''">C:\Program Files (x86)\Steam\steamapps\common\tModLoader</TMLDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Remove="build.txt" />
+    <AdditionalFiles Remove="description.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="build.txt" />
+    <None Remove="description.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="build.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="description.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Add explicit references so IDE can resolve Terraria/tModLoader/FNA types -->
+  <ItemGroup Condition="Exists('$(TMLDir)\tModLoader.dll')">
+    <Reference Include="tModLoader">
+      <HintPath>$(TMLDir)\tModLoader.dll</HintPath>
+    </Reference>
+    <Reference Include="Terraria">
+      <HintPath>$(TMLDir)\Terraria.dll</HintPath>
+    </Reference>
+    <Reference Include="FNA">
+      <HintPath>$(TMLDir)\FNA.dll</HintPath>
+    </Reference>
+    <Reference Include="ReLogic">
+      <HintPath>$(TMLDir)\ReLogic.dll</HintPath>
+    </Reference>
+    <Reference Include="Steamworks.NET" Condition="Exists('$(TMLDir)\Steamworks.NET.dll')">
+      <HintPath>$(TMLDir)\Steamworks.NET.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Configs\" />
+    <Folder Include="GlobalNPCs\" />
+    <Folder Include="GlobalProjectiles\" />
+    <Folder Include="Localization\" />
+    <Folder Include="Properties\" />
+    <Folder Include="Systems\" />
+  </ItemGroup>
+</Project>

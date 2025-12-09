@@ -1,0 +1,165 @@
+Mods: {
+	TerrariaOptimizer: {
+		DisplayName: Terraria Optimizer
+
+		Configs: {
+			OptimizationConfig: {
+				DisplayName: Terraria Optimizer
+
+				Headers: {
+					PerformanceSettings: Performance Settings
+					VisualSettings: Visual Settings
+					MemorySettings: Memory Settings
+				}
+
+				// Debug Mode setting
+				DebugMode: {
+					DisplayName: Debug Mode
+					Tooltip: Enable detailed optimizer logs; useful for troubleshooting. Can be noisy.
+					Label: Debug Mode
+				}
+
+				// NPC AI Throttling setting
+				NPCAIThrottling: {
+					DisplayName: NPC AI Throttling
+					Tooltip: Skips some NPC AI ticks when many are active to stabilize FPS. Recommended: On. Impact: smoother frames in swarms; minimal behavior change for non-town NPCs.
+					Label: NPC AI Throttling
+				}
+
+				// Max Active NPCs setting
+				MaxActiveNPCs: {
+					DisplayName: Max Active NPCs
+					Tooltip: NPC count above which AI throttling begins; lower = stronger throttling. Recommended: 50–100. Impact: lower values reduce AI work sooner; set higher for boss-heavy fights.
+					Label: Max Active NPCs
+				}
+
+				// Projectile Optimization setting
+				ProjectileOptimization: {
+					DisplayName: Projectile Optimization
+					Tooltip: Prioritizes important projectiles and prunes excess to reduce load. Recommended: On. Impact: removes unimportant, older projectiles; gameplay-critical shots are preserved.
+					Label: Projectile Optimization
+				}
+
+				// Offscreen Optimization setting
+				OffscreenOptimization: {
+					DisplayName: Offscreen Optimization
+					Tooltip: Skips costly work for distant entities; minimal visual impact. Recommended: On. Impact: fewer updates far from the player; reduces hidden workload.
+					Label: Offscreen Optimization
+				}
+
+				// Tile Update Reduction setting
+				TileUpdateReduction: {
+					DisplayName: Tile Update Reduction
+					Tooltip: Reduces background tile updates; functional tiles remain responsive. Recommended: On. Impact: lower background CPU time; interactions remain intact.
+					Label: Tile Update Reduction
+				}
+
+				// Garbage Collection Optimization setting
+				GarbageCollectionOptimization: {
+					DisplayName: Garbage Collection Optimization
+					Tooltip: Uses object pools to lower GC pressure and smooth frames. Recommended: On. Impact: fewer GC spikes; small memory footprint increase due to pooling.
+					Label: Garbage Collection Optimization
+				}
+
+				// Memory Monitoring setting
+				MemoryMonitoring: {
+					DisplayName: Memory Monitoring
+					Tooltip: Watches managed memory and triggers safe cleanup when needed. Recommended: On for stability; adjust thresholds below for heavy modpacks. Impact: reduces rare memory spikes; negligible FPS impact.
+					Label: Memory Monitoring
+				}
+
+				// Multi-Core Utilization setting
+				MultiCoreUtilization: {
+					DisplayName: Multi-Core Utilization
+					Tooltip: Enables multi-threaded paths where safe to improve throughput.
+					Label: Multi Core Utilization
+				}
+
+				// Particle Effect Reduction setting
+				ParticleEffectReduction: {
+					DisplayName: Particle Effect Reduction
+					Tooltip: Lowers particle density under load; keeps combat readable and smoother. Recommended: On. Impact: fewer dust/gore under stress or offscreen; modest visual changes.
+					Label: Particle Effect Reduction
+				}
+
+				// Lighting Performance Mode setting
+				LightingPerformanceMode: {
+					DisplayName: Lighting Performance Mode
+					Tooltip: Uses faster lighting approximations; slight visual changes possible. Recommended: On. Impact: improved performance in large builds; may slightly alter lighting fidelity.
+					Label: Lighting Performance Mode
+				}
+
+				// Texture Optimization setting
+				TextureOptimization: {
+					DisplayName: Texture Optimization
+					Tooltip: Improves texture reuse and caching to reduce memory churn. Recommended: On. Impact: fewer allocations; potential micro-hitches reduced.
+					Label: Texture Optimization
+				}
+
+				// Client-side memory controls
+				ClientMemoryCleanupIntervalSeconds: {
+					DisplayName: Client Cleanup Interval (Seconds)
+					Tooltip: How often the client checks memory and considers cleanup. Recommended: 60–120. Impact: lower interval increases checks; use cautiously to avoid micro-stutters.
+					Label: Client Cleanup Interval (Seconds)
+				}
+
+				ClientMemoryHardThresholdMB: {
+					DisplayName: Client Hard Threshold (MB)
+					Tooltip: Managed memory level where client cleanup may occur. Recommended: 8192 for large packs; raise if client sits near threshold. Impact: higher threshold reduces cleanup frequency, lowering stutter risk.
+					Label: Client Hard Threshold (MB)
+				}
+
+				ClientAllowForcedGC: {
+					DisplayName: Client Allow Forced GC
+					Tooltip: Permit the client to trigger non-blocking GC above threshold. Recommended: Off; enable only if memory grows unchecked. Impact: small GC blips possible; non-blocking mode minimizes stutter.
+					Label: Client Allow Forced GC
+				}
+
+				Tooltips: {
+					DebugMode: ""
+					NPCAIThrottling: ""
+					MaxActiveNPCs: ""
+					ProjectileOptimization: ""
+					OffscreenOptimization: ""
+					TileUpdateReduction: ""
+					GarbageCollectionOptimization: ""
+					MemoryMonitoring: ""
+					MultiCoreUtilization: ""
+					ParticleEffectReduction: ""
+					LightingPerformanceMode: ""
+					TextureOptimization: ""
+				}
+			}
+
+			// Server-side config
+			OptimizationServerConfig: {
+				DisplayName: Terraria Optimizer (Server)
+				Headers.ServerSettings: Server Settings
+
+				ServerDebugMode: {
+					DisplayName: Server Debug Mode
+					Tooltip: Enable debug logging on the dedicated server. Recommended: Off in production. Impact: detailed logs; can be noisy.
+					Label: Server Debug Mode
+				}
+
+				MemoryCleanupIntervalSeconds: {
+					DisplayName: Memory Cleanup Interval (Seconds)
+					Tooltip: How often to check memory and consider cleanup on the server. Recommended: 60–120. Impact: lower interval increases checks; keep balanced to avoid stutters.
+					Label: Memory Cleanup Interval (Seconds)
+				}
+
+				MemoryHardThresholdMB: {
+					DisplayName: Memory Hard Threshold (MB)
+					Tooltip: Managed memory level where cleanup may occur (raise for large modpacks). Recommended: 8192 for large packs; adjust based on observed headroom.
+					Label: Memory Hard Threshold (MB)
+				}
+
+				AllowForcedGC: {
+					DisplayName: Allow Forced GC
+					Tooltip: Permit the mod to trigger non-blocking GC when above the hard threshold. Recommended: Off for strict stutter avoidance; On if memory pressure is frequent.
+					Label: Allow Forced GC
+				}
+			}
+		}
+	}
+}

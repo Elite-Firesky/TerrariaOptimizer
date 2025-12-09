@@ -1,0 +1,31 @@
+Mods: {
+	TerrariaOptimizer: {
+		$schema: https://dl.dropbox.com/s/erm8z097rfu1cha/hjson-schema.json
+		Description: A sophisticated performance optimization mod for tModLoader that dramatically improves frame rates and reduces lag in heavily modded games.
+
+		Configs: {
+			OptimizationConfig: {
+				Description: Configure the various optimization systems to suit your needs.
+				NPCAIThrottling.Description: Skip some NPC AI ticks when counts are high to stabilize FPS.
+				MaxActiveNPCs.Description: NPC count threshold that enables throttling; lower means more aggressive.
+				ProjectileOptimization.Description: Prioritize important projectiles and prune excess to reduce load.
+				TileUpdateReduction.Description: Reduce background tile updates; interactive tiles remain responsive.
+				GarbageCollectionOptimization.Description: Use object pools to lower GC pressure and smooth frames.
+				MultiCoreUtilization.Description: Enable multi-threaded paths where safe to improve throughput.
+				ParticleEffectReduction.Description: Lower particle density under load to keep visuals readable and smooth.
+				LightingPerformanceMode.Description: Use faster lighting approximations; minor visual differences possible.
+				ClientMemoryCleanupIntervalSeconds.Description: How often the client checks memory and considers cleanup.
+				ClientMemoryHardThresholdMB.Description: Managed memory level where client cleanup may occur.
+				ClientAllowForcedGC.Description: Permit the client to trigger non-blocking GC above threshold.
+			}
+
+			OptimizationServerConfig: {
+				Description: Server-side options for Terraria Optimizer.
+				ServerDebugMode.Description: Enable debug logging on the dedicated server
+				MemoryCleanupIntervalSeconds.Description: How often to check memory and consider cleanup on the server
+				MemoryHardThresholdMB.Description: Managed memory level where cleanup may occur
+				AllowForcedGC.Description: Permit the mod to trigger non-blocking GC above threshold
+			}
+		}
+	}
+}

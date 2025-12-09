@@ -1,0 +1,5 @@
+author = Firesky
+version = 1.0.10
+displayName = TerrariaOptimizer
+homepage = 
+side = Both
