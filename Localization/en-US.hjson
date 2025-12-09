@@ -134,7 +134,11 @@ Mods: {
 			// Server-side config
 			OptimizationServerConfig: {
 				DisplayName: Terraria Optimizer (Server)
-				Headers.ServerSettings: Server Settings
+
+				Headers: {
+					ServerSettings: Server Settings
+					Networking: Network Traffic Reduction Header
+				}
 
 				ServerDebugMode: {
 					DisplayName: Server Debug Mode
@@ -158,6 +162,21 @@ Mods: {
 					DisplayName: Allow Forced GC
 					Tooltip: Permit the mod to trigger non-blocking GC when above the hard threshold. Recommended: Off for strict stutter avoidance; On if memory pressure is frequent.
 					Label: Allow Forced GC
+				}
+
+				NetworkOffscreenDistancePx: {
+					Tooltip: ""
+					Label: Network Offscreen Distance Px
+				}
+
+				NetworkUpdateInterval: {
+					Tooltip: ""
+					Label: Network Update Interval
+				}
+
+				NetworkTrafficReduction: {
+					Tooltip: ""
+					Label: Network Traffic Reduction
 				}
 			}
 		}
